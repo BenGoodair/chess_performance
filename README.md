@@ -6,7 +6,7 @@ A repo to calculate the rolling chess performance of chess.come players, by coun
 
 **Overview**
 
-This project investigates the evolution of chess performance metrics—Elo rating and move accuracy—among 1,000 British Chess.com players over time. We analyze how major national events (e.g., Brexit, lockdowns, elections) coincide with changes in cognitive performance as inferred from chess data.
+This project ultimately aims to analyse the full rating history of all chess players - to determine the effect of national-level events on cognitive performance. For now, we have pulled the full game histories of 1k players registered with the nationality of GB (out of potential 6m). Just to test how it works with (e.g., Brexit, lockdowns, elections).
 
 ---
 
@@ -18,34 +18,12 @@ This project investigates the evolution of chess performance metrics—Elo ratin
 
   * **Elo Rating** (pre-game rating).
   * **Accuracy** score from engine analysis (when available).
-  * **Timestamp** of game completion.
 
 Data saved as CSV:
 
 ```
 Data/random_1k_GB.csv
 ```
-
----
-
-## Methodology
-
-1. **Preprocessing**:
-
-   * Parse timestamps into datetime.
-   * Filter out entries without ratings.
-2. **Rolling Average Elo**:
-
-   * Compute a 10-game rolling mean per player.
-3. **Monthly Aggregation**:
-
-   * Unique active players.
-   * Average games played per player.
-   * Mean and standard deviation of rolling Elo.
-   * Mean and standard deviation of accuracy.
-4. **Event Overlay**:
-
-   * Annotate plots with key dates (e.g., Brexit referendum, national lockdowns, elections).
 
 ---
 
@@ -65,19 +43,7 @@ Data/random_1k_GB.csv
 
 ---
 
-## Usage
 
-1. Clone the repository.
-2. Install dependencies:
-
-   ```bash
-   pip3 install -r requirements.txt
-   ```
-3. Run data collection and analysis script:
-
-   ```bash
-   python3 analysis.py
-   ```
 
 ---
 
