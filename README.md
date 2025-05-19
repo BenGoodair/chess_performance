@@ -8,6 +8,11 @@ A repo to calculate the rolling chess performance of chess.come players, by coun
 
 This project ultimately aims to analyse the full rating history of all chess players - to determine the effect of national-level events on cognitive performance. For now, we have pulled the full game histories of 1k players registered with the nationality of GB (out of potential 6m). Just to test how it works with (e.g., Brexit, lockdowns, elections).
 
+**Progress and next steps**
+It took 4 hours to pull 1k users full chess histories using this code. It can be sped up for sure, running in parallel etc. But probably we need a virtual machine to take on this effort.
+
+Next step: a) run it on a virtual machine; b) upgrade to entire GB userbase; c) plot and reflect how to expand
+
 ---
 
 ## Data Collection
