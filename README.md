@@ -55,7 +55,7 @@ We see that people's rating performance declines consistently over time - a mean
 
 Britain is a country that deeply seeks rising inequality. It is a country that believes in inequality as a fundamental national value. The austerity era provided a great rise in inequality in chess rating - as it did material wealth.
 <p align="center">
-  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/mean_rolling_elo.png"  />
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/std_rolling_elo.png"  />
 </p>
 
 ---
