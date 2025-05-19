@@ -28,29 +28,35 @@ Data/random_1k_GB.csv
 ---
 
 ## Figures
+We see, of our 1k players, many quit the app after the passing of Queen Elizabeth - as loyal subjects, out of respect and mourning for our beloved majesty.
 
-&#x20;*Figure 1: Number of unique active players per month.*
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/active_players.png"  />
+</p>
 
-&#x20;*Figure 2: Average monthly games per player.*
+We see that people start playing more games per day after the Brexit referendum in a deep effort to reconnect to our European sisters, brothers and siblings through the form of chess.
 
-&#x20;*Figure 3: Mean 10-game rolling Elo rating across all players.*
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/games_per_player.png"  />
+</p>
 
-&#x20;*Figure 4: Standard deviation of rolling Elo ratings.*
+We see that people's accuracy does decline during COVID-19. Probably because people were often drunk whilst playing.
 
-&#x20;*Figure 5: Mean move accuracy over time.*
-
-&#x20;*Figure 6: Standard deviation of move accuracy.*
-
----
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/mean_accuracy.png"  />
+</p>
 
 
+We see that people's rating performance declines consistently over time - a meaningful reflection of this great nations' race to the bottom of all measures of wealth, well-being and value.
 
----
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/mean_rolling_elo.png"  />
+</p>
 
-## Requirements
-
-* Python 3.8+
-* `requests`, `pandas`, `matplotlib`, `tqdm`
+Britain is a country that deeply seeks rising inequality. It is a country that believes in inequality as a fundamental national value. The austerity era provided a great rise in inequality in chess rating - as it did material wealth.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/mean_rolling_elo.png"  />
+</p>
 
 ---
 
