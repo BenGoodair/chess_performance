@@ -6,7 +6,13 @@ A repo to calculate the rolling chess performance of chess.come players, by coun
 
 **Overview**
 
-This project investigates the evolution of chess performance metrics—Elo rating and move accuracy—among 1,000 British Chess.com players over time. We analyze how major national events (e.g., Brexit, lockdowns, elections) coincide with changes in cognitive performance as inferred from chess data.
+This project ultimately aims to analyse the full rating history of all chess players - to determine the effect of national-level events on cognitive performance. For now, we have pulled the full game histories of 1k players registered with the nationality of GB (out of potential 6m). Just to test how it works with (e.g., Brexit, lockdowns, elections).
+
+**Progress and next steps**
+
+It took 4 hours to pull 1k users full chess histories using this code. It can be sped up for sure, running in parallel etc. But probably we need a virtual machine to take on this effort.
+
+Next step: a) run it on a virtual machine; b) upgrade to entire GB userbase; c) plot and reflect how to expand
 
 ---
 
@@ -18,7 +24,6 @@ This project investigates the evolution of chess performance metrics—Elo ratin
 
   * **Elo Rating** (pre-game rating).
   * **Accuracy** score from engine analysis (when available).
-  * **Timestamp** of game completion.
 
 Data saved as CSV:
 
@@ -28,63 +33,36 @@ Data/random_1k_GB.csv
 
 ---
 
-## Methodology
-
-1. **Preprocessing**:
-
-   * Parse timestamps into datetime.
-   * Filter out entries without ratings.
-2. **Rolling Average Elo**:
-
-   * Compute a 10-game rolling mean per player.
-3. **Monthly Aggregation**:
-
-   * Unique active players.
-   * Average games played per player.
-   * Mean and standard deviation of rolling Elo.
-   * Mean and standard deviation of accuracy.
-4. **Event Overlay**:
-
-   * Annotate plots with key dates (e.g., Brexit referendum, national lockdowns, elections).
-
----
-
 ## Figures
+We see, of our 1k players, many quit the app after the passing of Queen Elizabeth - as loyal subjects, out of respect and mourning for our beloved majesty.
 
-&#x20;*Figure 1: Number of unique active players per month.*
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/active_players.png"  />
+</p>
 
-&#x20;*Figure 2: Average monthly games per player.*
+We see that people start playing more games per day after the Brexit referendum in a deep effort to reconnect to our European sisters, brothers and siblings through the form of chess.
 
-&#x20;*Figure 3: Mean 10-game rolling Elo rating across all players.*
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/games_per_player.png"  />
+</p>
 
-&#x20;*Figure 4: Standard deviation of rolling Elo ratings.*
+We see that people's accuracy does decline during COVID-19. Probably because people were often drunk whilst playing.
 
-&#x20;*Figure 5: Mean move accuracy over time.*
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/mean_accuracy.png"  />
+</p>
 
-&#x20;*Figure 6: Standard deviation of move accuracy.*
 
----
+We see that people's rating performance declines consistently over time - a meaningful reflection of this great nations' race to the bottom of all measures of wealth, well-being and value.
 
-## Usage
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/mean_rolling_elo.png"  />
+</p>
 
-1. Clone the repository.
-2. Install dependencies:
-
-   ```bash
-   pip3 install -r requirements.txt
-   ```
-3. Run data collection and analysis script:
-
-   ```bash
-   python3 analysis.py
-   ```
-
----
-
-## Requirements
-
-* Python 3.8+
-* `requests`, `pandas`, `matplotlib`, `tqdm`
+Britain is a country that deeply seeks rising inequality. It is a country that believes in inequality as a fundamental national value. The austerity era provided a great rise in inequality in chess rating - as it did material wealth.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/BenGoodair/chess_performance/main/Figures/std_rolling_elo.png"  />
+</p>
 
 ---
 
