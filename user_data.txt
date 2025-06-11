@@ -1,0 +1,137 @@
+#!/bin/bash
+set -e  # Exit on any error
+
+# Log everything
+exec > >(tee -a /var/log/user-data.log) 2>&1
+echo "User data script started at $(date)"
+
+# Only update package lists, don't upgrade everything
+yum makecache
+
+# Install only what we need (no full system update)
+yum install -y python3 python3-pip python3-devel git gcc tmux htop
+
+# Create a directory for our project
+mkdir -p /home/ec2-user/chess-project
+cd /home/ec2-user/chess-project
+
+# Create the proper directory structure
+mkdir -p chess_performance/Data/raw_data
+mkdir -p chess_performance/Data/processed
+mkdir -p chess_performance/Data/summaries
+mkdir -p chess_performance/logs
+mkdir -p chess_performance/checkpoints
+
+# Create the requirements.txt file
+cat > chess_performance/requirements.txt << 'EOF'
+requests>=2.31.0
+pandas>=2.0.0
+numpy>=1.24.0
+tqdm>=4.65.0
+aiohttp>=3.8.0
+psutil>=5.9.0
+EOF
+
+# Upgrade pip first
+pip3 install --upgrade pip
+
+# Install Python packages with error handling
+echo "Installing Python packages..."
+if ! pip3 install -r chess_performance/requirements.txt; then
+    echo "Package installation failed, trying with --user flag"
+    pip3 install --user -r chess_performance/requirements.txt
+fi
+
+# Create a monitoring script
+cat > /home/ec2-user/monitor_chess.sh << 'EOF'
+#!/bin/bash
+echo "=== Chess Analysis Monitor ==="
+echo "System Resources:"
+echo "CPU: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | awk -F'%' '{print $1}')"
+echo "Memory: $(free -h | awk 'NR==2{printf "%.1f%%", $3*100/$2 }')"
+echo "Disk: $(df -h /home | awk 'NR==2{print $5}')"
+echo ""
+echo "Process Status:"
+if pgrep -f "python3 main.py" > /dev/null; then
+    echo "✓ Chess analysis is running"
+    echo "PID: $(pgrep -f "python3 main.py")"
+else
+    echo "✗ Chess analysis is not running"
+fi
+echo ""
+echo "Recent logs:"
+if [ -f /home/ec2-user/chess-project/chess_performance/logs/chess_analysis.log ]; then
+    tail -n 5 /home/ec2-user/chess-project/chess_performance/logs/chess_analysis.log
+else
+    echo "No log file found"
+fi
+EOF
+
+# Create an improved run script
+cat > /home/ec2-user/run_chess_analysis.sh << 'EOF'
+#!/bin/bash
+cd /home/ec2-user/chess-project/chess_performance
+
+echo "Starting chess analysis at $(date)"
+echo "System info:"
+echo "- CPU cores: $(nproc)"
+echo "- Memory: $(free -h | awk 'NR==2{printf "%s total, %s available", $2, $7}')"
+echo "- Disk space: $(df -h /home | awk 'NR==2{print $4 " available"}')"
+echo ""
+
+# Check if already running
+if pgrep -f "python3 main.py" > /dev/null; then
+    echo "Analysis is already running! PID: $(pgrep -f "python3 main.py")"
+    echo "Use 'tmux attach -t chess' to monitor or 'pkill -f main.py' to stop"
+    exit 1
+fi
+
+echo "Installing any missing packages..."
+pip3 install -r requirements.txt
+
+echo "Running analysis in tmux..."
+tmux new-session -d -s chess "python3 main.py 2>&1 | tee logs/chess_run_$(date +%Y%m%d_%H%M%S).log"
+
+echo "Analysis started in tmux session 'chess'"
+echo ""
+echo "Useful commands:"
+echo "- Monitor: tmux attach -t chess"
+echo "- Status: ~/monitor_chess.sh"
+echo "- Stop: tmux kill-session -t chess"
+echo "- Logs: tail -f logs/chess_analysis.log"
+EOF
+
+# Make scripts executable
+chmod +x /home/ec2-user/run_chess_analysis.sh
+chmod +x /home/ec2-user/monitor_chess.sh
+
+# Change ownership to ec2-user
+chown -R ec2-user:ec2-user /home/ec2-user/chess-project
+chown ec2-user:ec2-user /home/ec2-user/run_chess_analysis.sh
+chown ec2-user:ec2-user /home/ec2-user/monitor_chess.sh
+
+# Write completion message with helpful info
+cat > /home/ec2-user/setup_complete.txt << 'EOF'
+Chess Analysis Setup Complete!
+
+To start the analysis:
+  ./run_chess_analysis.sh
+
+To monitor progress:
+  ./monitor_chess.sh
+  tmux attach -t chess
+
+To check logs:
+  tail -f chess-project/chess_performance/logs/chess_analysis.log
+
+Important files:
+- Main script: chess-project/chess_performance/main.py
+- Config: chess-project/chess_performance/config.py
+- Logs: chess-project/chess_performance/logs/
+- Data: chess-project/chess_performance/Data/
+- Checkpoints: chess-project/chess_performance/checkpoints/
+
+EOF
+
+echo "Setup completed successfully at $(date)"
+echo "Check /home/ec2-user/setup_complete.txt for usage instructions"
