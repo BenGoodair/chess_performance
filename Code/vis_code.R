@@ -41,6 +41,25 @@ lockdowns <- data.frame(
   lockdown_num = c(1, 2, 3, 1, 2, 3, 1, 2)
 )
 
+# Create a function to add lockdown shading
+add_lockdown_shading <- function(plot, country_name) {
+  country_lockdowns <- lockdowns[lockdowns$country == country_name, ]
+  
+  for(i in 1:nrow(country_lockdowns)) {
+    plot <- plot + 
+      annotate("rect", 
+               xmin = country_lockdowns$start[i], 
+               xmax = country_lockdowns$end[i],
+               ymin = -Inf, ymax = Inf, 
+               alpha = 0.2, fill = "red") +
+      annotate("text",
+               x = country_lockdowns$start[i] + (country_lockdowns$end[i] - country_lockdowns$start[i])/2,
+               y = Inf,
+               label = paste("Lockdown", country_lockdowns$lockdown_num[i]),
+               vjust = 1.2, hjust = 0.5, size = 3, color = "darkred", fontface = "bold")
+  }
+  return(plot)
+}
 
 
 faceted_plot <- ggplot(all_data, aes(x = date, y = accuracy_mean, color = country)) +
@@ -95,6 +114,94 @@ faceted_plot <- faceted_plot +
             fontface = "bold", inherit.aes = FALSE)
 
 print(faceted_plot)
+
+
+
+
+
+faceted_plot_elo <- ggplot(all_data, aes(x = date, y = rating_mean, color = country)) +
+  geom_line(size = 0.8, alpha = 0.7) +
+  geom_smooth(method = "loess", span = 0.1, se = FALSE, size = 1.2) +
+  facet_wrap(~country, scales = "free_y", ncol = 1) +
+  scale_color_manual(values = c("Germany" = "#FF6B6B", "United Kingdom" = "#4ECDC4", "France" = "#45B7D1")) +
+  labs(
+    title = "Chess accuracy Performance by Country",
+    subtitle = "Individual country trends with their specific lockdown periods",
+    x = "Date",
+    y = "Mean accuracy",
+    color = "Country"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12, color = "gray60"),
+    legend.position = "none",
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold", size = 12)
+  ) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y")
+
+# Add country-specific lockdown shading only for the matching facet
+# Create a data frame for lockdown rectangles that can be used with geom_rect
+lockdown_rects <- data.frame()
+for(country in unique(lockdowns$country)) {
+  country_lockdowns <- lockdowns[lockdowns$country == country, ]
+  if(nrow(country_lockdowns) > 0) {
+    country_rects <- data.frame(
+      country = country,
+      xmin = country_lockdowns$start,
+      xmax = country_lockdowns$end,
+      lockdown_num = country_lockdowns$lockdown_num
+    )
+    lockdown_rects <- rbind(lockdown_rects, country_rects)
+  }
+}
+
+# Add the rectangles and labels using geom_rect (which respects faceting)
+faceted_plot_elo <- faceted_plot_elo +
+  geom_rect(data = lockdown_rects, 
+            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+            alpha = 0.2, fill = "red", inherit.aes = FALSE) +
+  geom_text(data = lockdown_rects,
+            aes(x = xmin + (xmax - xmin)/2, y = Inf, 
+                label = paste("L", lockdown_num)),
+            vjust = 1.2, hjust = 0.5, size = 3, color = "darkred", 
+            fontface = "bold", inherit.aes = FALSE)
+
+print(faceted_plot_elo)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # 5. Summary statistics during lockdown vs non-lockdown periods
 # Create a function to determine if a date is during lockdown
