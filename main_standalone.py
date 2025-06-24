@@ -20,7 +20,7 @@ import gc
 
 
 
-COUNTRIES = {'GB': 'Great Britain', 'FR': 'France', 'DE': 'Germany', 'US': 'United States', 'I>
+COUNTRIES = {'GB': 'Great Britain', 'FR': 'France', 'DE': 'Germany', 'US': 'United States', 'IN': 'India',
     'RU': 'Russia',             # Russia
     'UA': 'Ukraine',            # Ukraine
     'CA': 'Canada',             # Canada
