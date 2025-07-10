@@ -10,7 +10,7 @@ This project ultimately aims to analyse the chess performance of nations - to re
 
 **Progress and next steps**
 
-Edit: 10/07/25 We now have AWS scraping around 1 country per week - only selecting consistent users since 2017 and recording win %. This gives us around 1k games from 2010 onwards; and around 25-50m games per country
+Edit: 10/07/25 We now have AWS scraping around 1 country per week - only selecting consistent users since 2017 and recording win %. This gives us around 1k games per day from 2010 onwards; and around 25-50m games per country in total
 
 Next step: a) let it run for 7 countries b) analyse the data c) decide if there are other questions to answer (ie. time during day; country vs other country).
 
