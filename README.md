@@ -7,13 +7,23 @@ A repo to calculate the rolling chess performance of chess.come players, by coun
 **Overview**
 
 This project ultimately aims to analyse the chess performance of nations - to reveal something about the world through chess.
+
 **Progress and next steps**
 
-Edit: 10/07/25 We now have AWS scraping around 1 country per week - only selecting consistent users since 2017. This gives us around 1k games from 2010 onwards; and around 25-50m games per country
+Edit: 10/07/25 We now have AWS scraping around 1 country per week - only selecting consistent users since 2017 and recording win %. This gives us around 1k games from 2010 onwards; and around 25-50m games per country
+
 Next step: a) let it run for 7 countries b) analyse the data c) decide if there are other questions to answer (ie. time during day; country vs other country).
-Previous step: We achieved code that pulled data for a random sample of around 6k players for 20 countries - it made pretty plots, but needed improving for analysis.
+
+Previous step: We achieved code that pulled data for a random sample of around 5k players for 20 countries - it made pretty plots, but needed improving for analysis.
+
+**Repo Structure**
+
+ - Code: code to pull data and analyse data in the code folder
+ - Data: Three rounds of data scraping (random 1k players UK; 5k players for 20 countries; 25m games... ongoing) 
+ - silly outputs in the figures folder
 
 Below: Silly stuff I did to start with for funzies...
+
 ---
 
 ## Data Collection
