@@ -84,7 +84,7 @@ COUNTRIES = {'GB': 'Great Britain', 'FR': 'France', 'DE': 'Germany', 'US': 'Unit
     'PT': 'Portugal',           # Iberian Peninsula completion
     'IE': 'Ireland',            # Celtic chess
     'MT': 'Malta',              # Mediterranean island chess
-    'CY': 'Cyprus'
+    'CY': 'Cyprus' }
 
 
 

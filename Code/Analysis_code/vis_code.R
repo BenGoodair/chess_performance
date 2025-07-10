@@ -12,7 +12,7 @@ pacman::p_load(devtools,np,lazyeval, hmisc,interp, lmtest,gt, modelsummary, dply
 # Alternative examples:
  #SELECTED_COUNTRIES <- c("Germany", "United Kingdom", "Canada" ,"France")  # Just Europe
 # SELECTED_COUNTRIES <- c("United States", "India", "Russia", "Ukraine")   # US + Eastern Europe
- SELECTED_COUNTRIES <- c("Germany", "United Kingdom", "France", "United States", "India", "Ukraine", "Russia", "Brazil", "Canada")  # All countries
+ SELECTED_COUNTRIES <- c("Germany", "United Kingdom", "France", "United States", "India", "Ukraine", "Russia", "Brazil", "Canada", "Spain", "Italy")  # All countries
 
 # =============================================================================
 # DATA LOADING AND PROCESSING
@@ -28,20 +28,24 @@ country_data <- list(
   "Ukraine" = read.csv(curl("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/UA_daily_stats.csv")),
   "Russia" = read.csv(curl("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/RU_daily_stats.csv")),
   "Canada" = read.csv(curl("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/CA_daily_stats.csv")),
-  "Brazil" = read.csv(curl("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/BR_daily_stats.csv"))
+  "Spain" = read.csv(curl("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/ES_daily_stats.csv")),
+  "Italy" = read.csv(curl("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/IT_daily_stats.csv")),
+  "Brazil" = read.csv(curl("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/BR_daily_stats.csv")),
+  "Norway" = read.csv(curl("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/NO_daily_stats.csv")),
+  "Netherlands" = read.csv(curl("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/NL_daily_stats.csv"))
 )
 
 # Convert date columns to Date type for all datasets
 for(country in names(country_data)) {
   country_data[[country]]$date <- as.Date(country_data[[country]]$date)
 }
-
 # Filter and combine only selected countries
 selected_data_list <- country_data[SELECTED_COUNTRIES]
 all_data <- do.call(rbind, lapply(names(selected_data_list), function(country) {
   data.frame(country = country, selected_data_list[[country]])
 }))
-# Define all lockdown periods including Canada and Brazil
+
+# Define all lockdown periods including Canada, Brazil, Spain, Italy, Netherlands, and Norway
 all_lockdowns <- data.frame(
   country = c(
     "United Kingdom", "United Kingdom", "United Kingdom",
@@ -52,7 +56,11 @@ all_lockdowns <- data.frame(
     "Ukraine", "Ukraine",
     "Russia", "Russia", "Russia",
     "Canada", "Canada", "Canada",
-    "Brazil", "Brazil"
+    "Brazil", "Brazil",
+    "Spain", "Spain", "Spain",
+    "Italy", "Italy",
+    "Netherlands", "Netherlands",
+    "Norway", "Norway"
   ),
   start = as.Date(c(
     "2020-03-23", "2020-11-05", "2021-01-06",
@@ -63,7 +71,11 @@ all_lockdowns <- data.frame(
     "2020-03-17", "2020-10-08",
     "2020-03-30", "2020-10-05", "2021-06-13",
     "2020-03-16", "2020-12-26", "2021-04-03",
-    "2020-03-16", "2021-01-10"
+    "2020-03-16", "2021-01-10",
+    "2020-03-14", "2020-10-25", "2021-01-16",
+    "2020-03-09", "2020-11-06",
+    "2020-03-16", "2020-12-15",
+    "2020-03-12", "2021-01-04"
   )),
   end = as.Date(c(
     "2020-07-04", "2020-12-02", "2021-07-19",
@@ -74,13 +86,16 @@ all_lockdowns <- data.frame(
     "2020-05-11", "2021-01-24",
     "2020-05-12", "2020-12-08", "2021-07-11",
     "2020-05-15", "2021-03-08", "2021-06-15",
-    "2020-05-31", "2021-03-31"
+    "2020-05-31", "2021-03-31",
+    "2020-06-21", "2020-12-09", "2021-05-09",
+    "2020-05-18", "2021-01-15",
+    "2020-06-01", "2021-04-28",
+    "2020-04-20", "2021-05-31"
   )),
-  lockdown_num = c(1, 2, 3, 1, 2, 3, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 3, 1, 2, 3, 1, 2)
+  lockdown_num = c(1, 2, 3, 1, 2, 3, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 3, 1, 2, 3, 1, 2, 1, 2, 3, 1, 2, 1, 2, 1, 2)
 )
 
 # Display the updated dataset
-
 # Filter lockdowns for selected countries only
 lockdowns <- all_lockdowns[all_lockdowns$country %in% SELECTED_COUNTRIES, ]
 
@@ -89,17 +104,21 @@ all_colors <- c(
   "Germany" = "#FF6B6B", 
   "United Kingdom" = "#4ECDC4", 
   "France" = "#45B7D1", 
-  "United States" = "#9B59B6", 
+  "United States" = "#9B5986", 
   "India" = "#F39C12", 
   "Ukraine" = "#E74C3C", 
-  "Russia" = "#8E44AD",
+  "Russia" = "#8E44AF",
   "Canada" = "#3498DB",  # A strong blue, works well with the existing tones
-  "Brazil" = "#2ECC71"   # A vibrant green, complements the warm tones nicely
+  "Brazil" = "#2ECC71",  # A vibrant green, complements the warm tones nicely
+  "Spain" = "#E67E22",   # A warm orange, distinctive and vibrant
+  "Italy" = "#1ABC9C",   # A teal color, elegant and stands out well
+  "Netherlands" = "#9B59B6",  # A rich purple, distinctive and vibrant
+  "Norway" = "#E74C3C"   # A bright red, stands out well against other colors
+)
 )
 
 # Filter colors for selected countries
 selected_colors <- all_colors[SELECTED_COUNTRIES]
-
 # =============================================================================
 # PLOT CREATION FUNCTIONS
 # =============================================================================
@@ -133,7 +152,7 @@ lockdown_rects <- create_lockdown_rects(lockdowns)
 faceted_plot <- ggplot(all_data, aes(x = date, y = accuracy_mean, color = country)) +
   geom_line(size = 0.8, alpha = 0.7) +
   geom_smooth(method = "loess", span = 0.1, se = FALSE, size = 1.2) +
-  facet_wrap(~country, scales = "free_y", ncol = 1) +
+  facet_wrap(~country, scales = "fixed", ncol = 4) +
   scale_color_manual(values = selected_colors) +
   labs(
     title = 'Chess "accuracy" performance by country',
@@ -166,7 +185,7 @@ faceted_plot <- ggplot(all_data, aes(x = date, y = accuracy_mean, color = countr
 faceted_plot_elo <- ggplot(all_data, aes(x = date, y = rating_mean, color = country)) +
   geom_line(size = 0.8, alpha = 0.7) +
   geom_smooth(method = "loess", span = 0.1, se = FALSE, size = 1.2) +
-  facet_wrap(~country, scales = "free_y", ncol = 1) +
+  facet_wrap(~country, scales = "fixed", ncol = 4) +
   scale_color_manual(values = selected_colors) +
   labs(
     title = "Chess ELO rating performance by country",
@@ -198,7 +217,7 @@ faceted_plot_elo <- ggplot(all_data, aes(x = date, y = rating_mean, color = coun
 faceted_plot_std <- ggplot(all_data, aes(x = date, y = rating_std, color = country)) +
   geom_line(size = 0.8, alpha = 0.7) +
   geom_smooth(method = "loess", span = 0.1, se = FALSE, size = 1.2) +
-  facet_wrap(~country, scales = "free_y", ncol = 1) +
+  facet_wrap(~country, scales = "fixed", ncol = 4) +
   scale_color_manual(values = selected_colors) +
   labs(
     title = "",
@@ -231,7 +250,7 @@ faceted_plot_std_acc <- ggplot(all_data, aes(x = date, y = accuracy_std, color =
   geom_line(size = 0.8, alpha = 0.7) +
   geom_smooth(method = "loess", span = 0.1, se = FALSE, size = 1.2) +
   coord_cartesian(xlim = as.Date(c("2019-08-18", "2025-06-18"))) +
-  facet_wrap(~country, scales = "free_y", ncol = 1) +
+  facet_wrap(~country, scales = "fixed", ncol = 4) +
   scale_color_manual(values = selected_colors) +
   labs(
     title = "",
