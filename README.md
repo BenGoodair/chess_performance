@@ -20,7 +20,8 @@ Previous step: We achieved code that pulled data for a random sample of around 5
 
  - Code: code to pull data and analyse data in the code folder
  - Data: Three rounds of data scraping (random 1k players UK; 5k players for 20 countries; 25m games... ongoing) 
- - silly outputs in the figures folder
+ - Figures: silly outputs in the figures folder
+ - Old structure: an old structure for code pulling involved many different python files rather than one single one we use now
 
 Below: Silly stuff I did to start with for funzies...
 
