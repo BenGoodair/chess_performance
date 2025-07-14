@@ -41,22 +41,43 @@ fr <- read_csv("/Users/wolf6040/Downloads/FR_daily_stats.csv")
 daily_stats <- bind_rows(gb, fr) %>%
   mutate(date = ymd(date))
 
-# Fetch daily max temperature for London (UK) and Paris (FR)
-# First, get station IDs
-stations <- meteo_tidy_ghcnd(stationid = c("UK000056225",  # London Heathrow
-                                           "FR000007930"), # Paris Montsouris
-                             var = c("TMAX"),
-                             date_min = min(daily_stats$date),
-                             date_max = max(daily_stats$date))
+# Fetch daily max temperature via nearest reliable GHCND stations
+# Define city coordinates
+coords <- tibble(
+  country = c("GB","FR"),
+  lat = c(51.47, 48.82),
+  lon = c(-0.45, 2.33)
+)
 
-weather <- stations %>%
-  select(id, date, tmax) %>%
+# Find nearest GHCND stations with TMAX data
+nearby <- coords %>%
+  rowwise() %>%
   mutate(
-    country = case_when(
-      id == "UK000056225" ~ "GB",
-      id == "FR000007930" ~ "FR"
-    ),
-    tmax = tmax / 10           # Convert from tenths °C to °C
+    stations = list(
+      meteo_nearby_stations(lat_lon_df = tibble(id=1, latitude=lat, longitude=lon), 
+                            var = "TMAX", limit = 5)[[1]]
+    )
+  ) %>%
+  dplyr::select(country, stations) %>%
+  unnest(stations) %>%
+  group_by(country) %>%
+  slice_min(order_by = as.numeric(distance), n = 1) %>%
+  ungroup() %>%
+  dplyr::select(country, id)
+
+# Pull TMAX for the selected stations over the date range
+temp_data <- meteo_tidy_ghcnd(
+  stationid = nearby$id,
+  var = c("TMAX"),
+  date_min = min(daily_stats$date),
+  date_max = max(daily_stats$date)
+)
+
+weather <- temp_data %>%
+  dplyr::select(id, date, tmax) %>%
+  left_join(nearby, by = "id") %>%
+  mutate(
+    tmax = tmax / 10  # Convert from tenths °C to °C
   )
 
 # Calculate daylight hours with suncalc
@@ -113,16 +134,16 @@ m1 <- lmer(win_percentage/100 ~ tmax_c + light_c + (1 | country), data = df)
 # Summarize model
 summary(m1)
 
-tidy(m1, effects = "fixed")
+broom.mixed::tidy(m1, effects = "fixed")
 
 # Visualization of model effects
 library(sjPlot)
 sjPlot::plot_model(m1, type = "pred", terms = c("tmax_c", "light_c"))
 
-# Save results for PNAS
-write_csv(df, "combined_chess_weather.csv")
-saveRDS(m1, "model_chess_weather.rds")
-
+# # Save results for PNAS
+# write_csv(df, "combined_chess_weather.csv")
+# saveRDS(m1, "model_chess_weather.rds")
+# 
 
 
 
