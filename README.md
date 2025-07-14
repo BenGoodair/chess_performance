@@ -8,6 +8,8 @@ A repo to calculate the rolling chess performance of chess.come players, by coun
 
 This project ultimately aims to analyse the chess performance of nations - to reveal something about the world through chess.
 
+We are scraping chess.com API to pull the full playing histories of random players - recording their game accruacy, ELO rating, and win %. We are, for now, aggregating this at national scale - to see how national events (daylight; weather events; cognitive load-related events) impact the concentration of chess players.
+
 **Progress and next steps**
 
 Edit: 10/07/25 We now have AWS scraping around 1 country per week - only selecting consistent users since 2017 and recording win %. This gives us around 1k games per day from 2010 onwards; and around 25-50m games per country in total
