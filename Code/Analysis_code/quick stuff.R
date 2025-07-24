@@ -14,11 +14,1012 @@ library(broom)
 library(patchwork)
 
 # Load data
-gb <- read.csv("/Users/wolf6040/Downloads/GB_daily_stats.csv")
-fr <- read.csv("/Users/wolf6040/Downloads/FR_daily_stats.csv")
+de <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/DE_daily_stats.csv")
+gb <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/GB_daily_stats.csv")
+fr <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/FR_daily_stats.csv")
+
+
+#### full moon ####
+
+# Full Moon Chess Performance Analysis
+# Load required libraries
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(RcUrl) # for moon phase calculations
+library(bcp) # for changepoint analysis if needed
+
+# Load your data (assuming you have GB, FR, DE datasets loaded)
+# gb <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/GB_daily_stats.csv")
+# fr <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/FR_daily_stats.csv")
+# de <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/DE_daily_stats.csv")
+
+# Function to calculate moon phase
+# Returns days since new moon (0-29.5, where ~14.8 is full moon)
+moon_phase <- function(date) {
+  # Known new moon: 2000-01-06 18:14 UTC
+  new_moon_2000 <- as.POSIXct("2000-01-06 18:14:00", tz="UTC")
+  date_utc <- as.POSIXct(date, tz="UTC")
+  
+  # Lunar cycle is approximately 29.530588 days
+  lunar_cycle <- 29.530588
+  days_since_ref <- as.numeric(difftime(date_utc, new_moon_2000, units="days"))
+  
+  # Calculate phase (0 = new moon, ~14.8 = full moon)
+  phase <- days_since_ref %% lunar_cycle
+  return(phase)
+}
+
+# Function to determine if date is near full moon
+is_full_moon_period <- function(phase, window_days = 2) {
+  full_moon_phase <- 14.765 # approximate full moon phase
+  
+  # Handle wrap-around (phase near 0 or 29.5 could be close to full moon)
+  distance_to_full <- pmin(
+    abs(phase - full_moon_phase),
+    abs(phase - full_moon_phase + 29.530588),
+    abs(phase - full_moon_phase - 29.530588)
+  )
+  
+  return(distance_to_full <= window_days)
+}
+
+# Combine all country data
+combine_country_data <- function(gb, fr, de = NULL) {
+  datasets <- list(gb, fr)
+  if (!is.null(de)) datasets <- append(datasets, list(de))
+  
+  combined <- bind_rows(datasets)
+  combined$date <- as.Date(combined$date)
+  
+  # Add moon phase data
+  combined$moon_phase <- moon_phase(combined$date)
+  combined$is_full_moon <- is_full_moon_period(combined$moon_phase, window_days = 2)
+  combined$is_new_moon <- is_full_moon_period(combined$moon_phase - 14.765, window_days = 2)
+  
+  # Create moon period categories
+  combined$moon_period <- case_when(
+    combined$is_full_moon ~ "Full Moon (±2 days)",
+    combined$is_new_moon ~ "New Moon (±2 days)", 
+    TRUE ~ "Other"
+  )
+  
+  return(combined)
+}
+
+# Analysis function
+analyze_moon_effect <- function(data) {
+  cat("=== FULL MOON CHESS PERFORMANCE ANALYSIS ===\n\n")
+  
+  # Summary statistics by moon period
+  moon_summary <- data %>%
+    filter(!is.na(rating_mean), rating_count > 0) %>%
+    group_by(moon_period, country) %>%
+    summarise(
+      n_days = n(),
+      avg_rating = mean(rating_mean, na.rm = TRUE),
+      avg_accuracy = mean(accuracy_mean, na.rm = TRUE),
+      avg_win_pct = mean(win_percentage, na.rm = TRUE),
+      total_games = sum(rating_count, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  print("Summary by Moon Period and Country:")
+  print(moon_summary)
+  
+  # Overall comparison (combining countries)
+  overall_comparison <- data %>%
+    filter(!is.na(rating_mean), rating_count > 0) %>%
+    group_by(moon_period) %>%
+    summarise(
+      n_days = n(),
+      n_countries = n_distinct(country),
+      avg_rating = weighted.mean(rating_mean, rating_count, na.rm = TRUE),
+      avg_accuracy = weighted.mean(accuracy_mean, accuracy_count, na.rm = TRUE),
+      avg_win_pct = mean(win_percentage, na.rm = TRUE),
+      total_games = sum(rating_count, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  cat("\n=== OVERALL COMPARISON ===\n")
+  print(overall_comparison)
+  
+  # Statistical tests
+  cat("\n=== STATISTICAL TESTS ===\n")
+  
+  # T-test for rating difference
+  full_moon_ratings <- data %>% 
+    filter(moon_period == "Full Moon (±2 days)", !is.na(rating_mean)) %>%
+    pull(rating_mean)
+  
+  other_ratings <- data %>% 
+    filter(moon_period == "Other", !is.na(rating_mean)) %>%
+    pull(rating_mean)
+  
+  if(length(full_moon_ratings) > 1 & length(other_ratings) > 1) {
+    rating_test <- t.test(full_moon_ratings, other_ratings)
+    cat("Rating: Full Moon vs Other periods\n")
+    cat(sprintf("Full Moon Mean: %.2f, Other Mean: %.2f\n", 
+                mean(full_moon_ratings), mean(other_ratings)))
+    cat(sprintf("P-value: %.4f\n", rating_test$p.value))
+    cat(sprintf("Effect size (Cohen's d): %.3f\n\n", 
+                (mean(full_moon_ratings) - mean(other_ratings)) / 
+                  sqrt(((length(full_moon_ratings)-1)*var(full_moon_ratings) + 
+                          (length(other_ratings)-1)*var(other_ratings)) / 
+                         (length(full_moon_ratings) + length(other_ratings) - 2))))
+  }
+  
+  # Similar tests for accuracy and win percentage
+  full_moon_acc <- data %>% 
+    filter(moon_period == "Full Moon (±2 days)", !is.na(accuracy_mean), accuracy_mean > 0) %>%
+    pull(accuracy_mean)
+  
+  other_acc <- data %>% 
+    filter(moon_period == "Other", !is.na(accuracy_mean), accuracy_mean > 0) %>%
+    pull(accuracy_mean)
+  
+  if(length(full_moon_acc) > 1 & length(other_acc) > 1) {
+    acc_test <- t.test(full_moon_acc, other_acc)
+    cat("Accuracy: Full Moon vs Other periods\n")
+    cat(sprintf("Full Moon Mean: %.2f%%, Other Mean: %.2f%%\n", 
+                mean(full_moon_acc), mean(other_acc)))
+    cat(sprintf("P-value: %.4f\n\n", acc_test$p.value))
+  }
+  
+  return(list(
+    summary = moon_summary,
+    overall = overall_comparison,
+    data_with_moon = data
+  ))
+}
+
+# Visualization function
+create_moon_plots <- function(data) {
+  # Rating by moon phase
+  p1 <- data %>%
+    filter(!is.na(rating_mean), rating_count > 0) %>%
+    ggplot(aes(x = moon_phase, y = rating_mean, color = country)) +
+    geom_point(alpha = 0.6, size = 1) +
+    geom_smooth(method = "loess", se = TRUE, alpha = 0.3) +
+    geom_vline(xintercept = 14.765, linetype = "dashed", color = "gold", size = 1) +
+    annotate("text", x = 16, y = max(data$rating_mean, na.rm = TRUE) * 0.95, 
+             label = "Full Moon", color = "gold") +
+    labs(title = "Chess Rating vs Moon Phase",
+         subtitle = "Full moon marked with vertical line",
+         x = "Days since New Moon", 
+         y = "Average Rating") +
+    theme_minimal()
+  
+  # Box plot comparison
+  p2 <- data %>%
+    filter(!is.na(rating_mean), rating_count > 0) %>%
+    ggplot(aes(x = moon_period, y = rating_mean, fill = moon_period)) +
+    geom_boxplot(alpha = 0.7) +
+    facet_wrap(~country) +
+    labs(title = "Rating Distribution by Moon Period",
+         x = "Moon Period", y = "Rating") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "none")
+  
+  # Time series with moon phases highlighted
+  p3 <- data %>%
+    filter(!is.na(rating_mean), year(date) >= 2010) %>%  # Focus on recent years
+    ggplot(aes(x = date, y = rating_mean)) +
+    geom_line(alpha = 0.7) +
+    geom_point(data = . %>% filter(is_full_moon), 
+               aes(color = "Full Moon"), size = 1.5) +
+    facet_wrap(~country, scales = "free_y") +
+    scale_color_manual(values = c("Full Moon" = "gold")) +
+    labs(title = "Chess Ratings Over Time with Full Moons Highlighted",
+         subtitle = "2010 onwards",
+         x = "Date", y = "Average Rating",
+         color = "") +
+    theme_minimal()
+  
+  return(list(moon_phase_plot = p1, box_plot = p2, time_series = p3))
+}
+
+# Main execution
+cat("Loading and combining data...\n")
+
+# Assuming your data is already loaded as gb, fr, de
+# combined_data <- combine_country_data(gb, fr, de)
+
+# For demonstration, let's create the framework:
+cat("To run this analysis:\n")
+cat("1. Make sure your data frames (gb, fr, de) are loaded\n") 
+cat("2. Run: combined_data <- combine_country_data(gb, fr, de)\n")
+cat("3. Run: results <- analyze_moon_effect(combined_data)\n")
+cat("4. Run: plots <- create_moon_plots(combined_data)\n")
+cat("5. View plots: print(plots$moon_phase_plot)\n")
+
+# Example of how to run (uncomment when data is ready):
+ combined_data <- combine_country_data(gb, fr, de)
+ results <- analyze_moon_effect(combined_data)
+ plots <- create_moon_plots(combined_data)
+ print(plots$moon_phase_plot)
+
+# Additional analysis ideas:
+cat("\n=== ADDITIONAL ANALYSIS SUGGESTIONS ===\n")
+cat("1. Seasonal effects combined with moon phases\n")
+cat("2. Weekend vs weekday interactions with moon phases\n") 
+cat("3. Player rating tier analysis (beginner vs expert responses)\n")
+cat("4. Lag effects (moon influence 1-2 days later)\n")
+cat("5. Country-specific cultural differences in lunar responses\n")
 
 head(gb)
 head(fr)
+head(de)
+
+####daylight hours####
+
+# Chess Performance vs Daylight Hours Analysis
+# Analysis of how daylight hours affect concentration levels (measured via chess performance)
+
+# Load required libraries
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(suncalc)
+library(tidyr)
+library(broom)
+library(corrplot)
+
+# Read the data
+de <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/DE_daily_stats.csv")
+gb <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/GB_daily_stats.csv")
+fr <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/FR_daily_stats.csv")
+
+# Combine all countries
+all_data <- rbind(de, gb, fr)
+
+# Convert date to Date format
+all_data$date <- as.Date(all_data$date)
+
+# Filter for consistent data from 2011 onwards
+all_data <- all_data %>%
+  filter(date >= as.Date("2011-01-01"))
+
+# Define approximate coordinates for each country's capital/center
+coordinates <- data.frame(
+  country = c("DE", "GB", "FR"),
+  lat = c(51.1657, 55.3781, 46.6034),  # Berlin, Glasgow, France center
+  lon = c(10.4515, -3.4360, 1.8883)
+)
+
+# Merge coordinates with data
+all_data <- merge(all_data, coordinates, by = "country")
+
+# Calculate daylight hours for each date and location
+calculate_daylight_hours <- function(date, lat, lon) {
+  sun_times <- getSunlightTimes(date = date, lat = lat, lon = lon)
+  daylight_hours <- as.numeric(difftime(sun_times$sunset, sun_times$sunrise, units = "hours"))
+  return(daylight_hours)
+}
+
+# Add daylight hours to the dataset
+all_data$daylight_hours <- mapply(calculate_daylight_hours, 
+                                  all_data$date, 
+                                  all_data$lat, 
+                                  all_data$lon)
+
+# Add seasonal variables
+all_data <- all_data %>%
+  mutate(
+    month = month(date),
+    day_of_year = yday(date),
+    season = case_when(
+      month %in% c(12, 1, 2) ~ "Winter",
+      month %in% c(3, 4, 5) ~ "Spring",
+      month %in% c(6, 7, 8) ~ "Summer",
+      month %in% c(9, 10, 11) ~ "Fall"
+    ),
+    year = year(date)
+  )
+
+# Clean and prepare performance measures
+# Focus on days with meaningful data (active players > 0)
+analysis_data <- all_data %>%
+  filter(active_players > 0) %>%
+  mutate(
+    # Handle missing/zero values
+    rating_mean_clean = ifelse(rating_mean == 0 | is.na(rating_mean), NA, rating_mean),
+    accuracy_mean_clean = ifelse(accuracy_mean == 0 | is.na(accuracy_mean), NA, accuracy_mean),
+    win_percentage_clean = ifelse(is.na(win_percentage), NA, win_percentage)
+  ) %>%
+  # Remove rows where all performance measures are NA
+  filter(!is.na(rating_mean_clean) | !is.na(accuracy_mean_clean) | !is.na(win_percentage_clean))
+
+# Summary statistics
+print("=== DATASET SUMMARY ===")
+print(paste("Total observations:", nrow(analysis_data)))
+print(paste("Date range:", min(analysis_data$date), "to", max(analysis_data$date)))
+print(paste("Countries:", paste(unique(analysis_data$country), collapse = ", ")))
+print(paste("Daylight hours range:", round(min(analysis_data$daylight_hours), 2), 
+            "to", round(max(analysis_data$daylight_hours), 2)))
+
+# 1. CORRELATION ANALYSIS
+print("\n=== CORRELATION ANALYSIS ===")
+
+# Create correlation matrix
+cor_vars <- c("daylight_hours", "rating_mean_clean", "accuracy_mean_clean", "win_percentage_clean")
+cor_data <- analysis_data[, cor_vars]
+cor_matrix <- cor(cor_data, use = "complete.obs")
+print(round(cor_matrix, 3))
+
+# Visualize correlation matrix
+corrplot(cor_matrix, method = "circle", type = "upper", 
+         title = "Correlation: Daylight Hours vs Chess Performance")
+
+# 2. LINEAR REGRESSION ANALYSIS
+print("\n=== LINEAR REGRESSION ANALYSIS ===")
+
+# Model 1: Rating vs Daylight Hours
+model_rating <- lm(rating_mean_clean ~ daylight_hours + country + year, 
+                   data = analysis_data)
+print("Model 1: ELO Rating vs Daylight Hours")
+print(summary(model_rating))
+
+# Model 2: Accuracy vs Daylight Hours  
+model_accuracy <- lm(accuracy_mean_clean ~ daylight_hours + country + year, 
+                     data = analysis_data)
+print("\nModel 2: Accuracy vs Daylight Hours")
+print(summary(model_accuracy))
+
+# Model 3: Win Percentage vs Daylight Hours
+model_win <- lm(win_percentage_clean ~ daylight_hours + country + year, 
+                data = analysis_data)
+print("\nModel 3: Win Percentage vs Daylight Hours")
+print(summary(model_win))
+
+# 3. SEASONAL ANALYSIS
+print("\n=== SEASONAL ANALYSIS ===")
+
+seasonal_summary <- analysis_data %>%
+  group_by(season, country) %>%
+  summarise(
+    avg_daylight = mean(daylight_hours, na.rm = TRUE),
+    avg_rating = mean(rating_mean_clean, na.rm = TRUE),
+    avg_accuracy = mean(accuracy_mean_clean, na.rm = TRUE),
+    avg_win_pct = mean(win_percentage_clean, na.rm = TRUE),
+    n_obs = n(),
+    .groups = 'drop'
+  )
+
+print(seasonal_summary)
+
+# 4. VISUALIZATION
+print("\n=== CREATING VISUALIZATIONS ===")
+
+# Plot 1: Daylight hours vs Rating by country
+p1 <- ggplot(analysis_data, aes(x = daylight_hours, y = rating_mean_clean, color = country)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(title = "ELO Rating vs Daylight Hours by Country",
+       x = "Daylight Hours", y = "Mean ELO Rating") +
+  theme_minimal()
+
+# Plot 2: Daylight hours vs Accuracy by country
+p2 <- ggplot(analysis_data, aes(x = daylight_hours, y = accuracy_mean_clean, color = country)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(title = "Accuracy vs Daylight Hours by Country",
+       x = "Daylight Hours", y = "Mean Accuracy (%)") +
+  theme_minimal()
+
+# Plot 3: Seasonal patterns
+seasonal_long <- seasonal_summary %>%
+  pivot_longer(cols = c(avg_rating, avg_accuracy, avg_win_pct), 
+               names_to = "metric", values_to = "value")
+
+p3 <- ggplot(seasonal_long, aes(x = season, y = value, fill = country)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~metric, scales = "free_y") +
+  labs(title = "Seasonal Chess Performance by Country",
+       x = "Season", y = "Performance Value") +
+  theme_minimal()
+
+# Plot 4: Time series showing daylight and performance
+monthly_data <- analysis_data %>%
+  group_by(country, month) %>%
+  summarise(
+    avg_daylight = mean(daylight_hours, na.rm = TRUE),
+    avg_rating = mean(rating_mean_clean, na.rm = TRUE),
+    avg_accuracy = mean(accuracy_mean_clean, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+p4 <- ggplot(monthly_data, aes(x = month)) +
+  geom_line(aes(y = avg_daylight * 100, color = "Daylight Hours (x100)"), size = 1) +
+  geom_line(aes(y = avg_rating, color = "ELO Rating"), size = 1) +
+  facet_wrap(~country) +
+  labs(title = "Monthly Patterns: Daylight Hours vs ELO Rating",
+       x = "Month", y = "Value", color = "Metric") +
+  theme_minimal()
+
+# Display plots
+print(p1)
+print(p2)
+print(p3)
+print(p4)
+
+# 5. ADVANCED ANALYSIS: Non-linear relationships
+print("\n=== NON-LINEAR ANALYSIS ===")
+
+# Test for non-linear relationship using polynomial terms
+model_poly <- lm(rating_mean_clean ~ poly(daylight_hours, 2) + country + year, 
+                 data = analysis_data)
+print("Polynomial Model (Rating vs Daylight Hours):")
+print(summary(model_poly))
+
+# 6. COUNTRY-SPECIFIC ANALYSIS
+print("\n=== COUNTRY-SPECIFIC ANALYSIS ===")
+
+country_models <- analysis_data %>%
+  group_by(country) %>%
+  do(model = lm(rating_mean_clean ~ daylight_hours + year, data = .))
+
+country_results <- country_models %>%
+  mutate(
+    coef_daylight = map_dbl(model, ~ coef(.)[2]),
+    p_value = map_dbl(model, ~ summary(.)$coefficients[2, 4]),
+    r_squared = map_dbl(model, ~ summary(.)$r.squared)
+  )
+
+print(country_results[, c("country", "coef_daylight", "p_value", "r_squared")])
+
+# 7. SUMMARY STATISTICS BY DAYLIGHT QUARTILES
+print("\n=== PERFORMANCE BY DAYLIGHT QUARTILES ===")
+
+quartile_analysis <- analysis_data %>%
+  mutate(daylight_quartile = cut(daylight_hours, 
+                                 breaks = quantile(daylight_hours, probs = 0:4/4, na.rm = TRUE),
+                                 labels = c("Q1 (Low)", "Q2", "Q3", "Q4 (High)"),
+                                 include.lowest = TRUE)) %>%
+  group_by(daylight_quartile) %>%
+  summarise(
+    avg_daylight = mean(daylight_hours, na.rm = TRUE),
+    avg_rating = mean(rating_mean_clean, na.rm = TRUE),
+    avg_accuracy = mean(accuracy_mean_clean, na.rm = TRUE),
+    avg_win_pct = mean(win_percentage_clean, na.rm = TRUE),
+    n_obs = n(),
+    .groups = 'drop'
+  )
+
+print(quartile_analysis)
+
+print("\n=== ANALYSIS COMPLETE ===")
+print("Key findings:")
+print("1. Check correlation matrix for initial relationships")
+print("2. Review regression coefficients for daylight_hours significance")
+print("3. Examine seasonal patterns for consistent effects")
+print("4. Consider country-specific differences in daylight sensitivity")
+
+
+
+
+
+
+
+
+####GPT weather ####
+#–– 0. Install & load
+pkgs <- c(
+  "dplyr","purrr","readr","tibble","tidyr","lubridate","zoo",
+  "forecast","plm","cluster","factoextra","rnoaa","suncalc","ggplot2"
+)
+install.packages(setdiff(pkgs, rownames(installed.packages())))
+library(dplyr); library(purrr); library(readr); library(tibble)
+library(tidyr); library(lubridate); library(zoo)
+library(forecast); library(plm)
+library(cluster);  library(factoextra)
+library(rnoaa);   library(suncalc); library(ggplot2)
+
+#–– 1. Load Chess Data for DE, FR, GB
+countries <- c("DE","FR","GB")
+df <- map_dfr(countries, function(cc) {
+  read_csv(
+    sprintf(
+      "https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/%s_daily_stats.csv",
+      cc
+    ),
+    col_types = cols(date = col_date())
+  ) %>%
+    mutate(country = cc) %>%
+    select(country, date, active_players, rating_mean, win_percentage, accuracy_mean)
+})
+
+#–– 2. City & hard‑coded station info
+city_info <- tibble(
+  country    = c("DE","FR","GB"),
+  lat         = c(52.5, 48.9, 51.5),
+  lon         = c(13.4,  2.4, -0.1),
+  # placeholder IDs – if these fail, we'll fallback
+  station_id = c("GM000007128", "FR000007070", "UK000056225")
+)
+
+date_seq <- seq(min(df$date), max(df$date), by = "day")
+
+#–– 3. Try bulk pull TAVG; fallback if empty
+options(noaakey = Sys.getenv("NOAA_TOKEN"))
+weather_raw <- tryCatch({
+  meteo_pull_monitors(
+    monitors = city_info$station_id,
+    var      = "TAVG",
+    date_min = min(date_seq),
+    date_max = max(date_seq)
+  )
+}, error = function(e) tibble())
+
+if (nrow(weather_raw) == 0) {
+  # fallback: NA for all
+  weather_list <- expand.grid(
+    country = city_info$country,
+    date    = date_seq,
+    stringsAsFactors = FALSE
+  ) %>%
+    as_tibble() %>%
+    mutate(temp_C = NA_real_)
+} else {
+  weather_all <- weather_raw %>%
+    rename(station_id = id) %>%
+    left_join(city_info %>% select(country, station_id), by = "station_id") %>%
+    select(country, date, tavg)
+  weather_list <- expand.grid(
+    country = city_info$country,
+    date    = date_seq,
+    stringsAsFactors = FALSE
+  ) %>%
+    as_tibble() %>%
+    left_join(weather_all, by = c("country","date")) %>%
+    mutate(temp_C = tavg / 10) %>%
+    select(country, date, temp_C)
+}
+
+#–– 4. Compute Daylight Hours
+daylight <- city_info %>%
+  select(country, lat, lon) %>%
+  crossing(date = date_seq) %>%
+  pmap_dfr(function(country, lat, lon, date) {
+    st <- getSunlightTimes(date = date, lat = lat, lon = lon,
+                           keep = c("sunrise","sunset"))
+    tibble(
+      country    = country,
+      date       = date,
+      daylight_h = as.numeric(difftime(st$sunset, st$sunrise, units = "hours"))
+    )
+  })
+
+#–– 5. Merge & Smooth
+df2 <- df %>%
+  left_join(weather_list, by = c("country","date")) %>%
+  left_join(daylight,      by = c("country","date")) %>%
+  group_by(country) %>%
+  arrange(date) %>%
+  fill(active_players, rating_mean, .direction = "down") %>%
+  mutate(
+    rm_rating = rollmean(rating_mean, 7, fill = NA, align = "right"),
+    rm_win    = rollmean(win_percentage, 7, fill = NA, align = "right")
+  ) %>%
+  ungroup()
+
+#–– 6. STL Decomposition & Residuals
+stl_resid <- df2 %>%
+  filter(!is.na(rm_rating)) %>%
+  group_by(country) %>%
+  do({
+    ts_ <- ts(.$rm_rating, freq = 365, start = decimal_date(min(.$date)))
+    fit <- mstl(ts_)
+    tibble(date = .$date, resid = as.numeric(remainder(fit)))
+  }) %>%
+  ungroup()
+
+df3 <- df2 %>% left_join(stl_resid, by = c("country","date"))
+
+#–– 7. Panel Regression (FE)
+panel <- df3 %>%
+  filter(!is.na(daylight_h), !is.na(rm_rating)) # drop temp if NA
+pmod <- plm(rm_rating ~ daylight_h + active_players,
+            data = panel, index = c("country","date"), model = "within")
+print(summary(pmod))
+
+#–– 8. Cluster by Monthly Seasonality
+monthly <- df2 %>%
+  mutate(month = month(date)) %>%
+  group_by(country, month) %>%
+  summarise(avg_r = mean(rating_mean, na.rm=TRUE), .groups="drop") %>%
+  pivot_wider(names_from=month, values_from=avg_r) %>%
+  column_to_rownames("country")
+set.seed(42)
+km <- kmeans(scale(monthly), centers = 3, nstart = 20)
+fviz_cluster(km, data = scale(monthly), geom = "point") +
+  labs(title="DE/FR/GB: Chess‑Rating Seasonality Clusters")
+
+#–– 9. Anomaly Detection
+anoms <- df3 %>%
+  group_by(country) %>%
+  mutate(mu = mean(resid, na.rm=TRUE),
+         sigma = sd(resid, na.rm=TRUE),
+         is_anom = abs(resid - mu) > 2*sigma) %>%
+  filter(is_anom) %>%
+  arrange(country, date)
+print(anoms %>% select(country, date, resid) %>% head(15))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+####event analysis####
+
+# Extreme Event Analysis for Chess Performance Data
+# Analysis of cognitive performance during major global events
+
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+library(gridExtra)
+
+# Load the data
+gb <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/GB_daily_stats.csv")
+fr <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/FR_daily_stats.csv")
+de <- read.csv("https://raw.githubusercontent.com/BenGoodair/chess_performance/refs/heads/main/Data/processed/effort_3/DE_daily_stats.csv")
+
+# Combine all countries
+all_data <- rbind(gb, fr, de)
+all_data$date <- as.Date(all_data$date)
+
+# Define major extreme events with global cognitive impact
+extreme_events <- data.frame(
+  event_name = c(
+    "European Debt Crisis Peak",
+    "London 2012 Olympics",
+    "Boston Marathon Bombing",
+    "Brexit Referendum",
+    "Trump Election",
+    "COVID-19 Pandemic Start",
+    "COVID-19 Lockdowns",
+    "US Capitol Riots",
+    "Ukraine War Start",
+    "Queen Elizabeth II Death",
+    "Silicon Valley Bank Collapse",
+    "Israel-Hamas War Start"
+  ),
+  event_date = as.Date(c(
+    "2011-10-27",  # EU bailout mechanism approved
+    "2012-07-27",  # Olympics start
+    "2013-04-15",  # Boston bombing
+    "2016-06-23",  # Brexit vote
+    "2016-11-08",  # Trump election
+    "2020-03-11",  # WHO declares pandemic
+    "2020-03-23",  # First major lockdowns
+    "2021-01-06",  # Capitol riots
+    "2022-02-24",  # Ukraine invasion
+    "2022-09-08",  # Queen dies
+    "2023-03-10",  # SVB collapse
+    "2023-10-07"   # Hamas attack
+  )),
+  event_type = c(
+    "Economic", "Cultural", "Terrorism", "Political", "Political", 
+    "Health", "Health", "Political", "War", "Cultural", "Economic", "War"
+  ),
+  expected_impact = c(
+    "Negative", "Positive", "Negative", "Negative", "Mixed",
+    "Negative", "Negative", "Negative", "Negative", "Negative", "Negative", "Negative"
+  )
+)
+
+# Function to calculate event impact
+calculate_event_impact <- function(data, event_date, window_before = 7, window_after = 7, 
+                                   metrics = c("rating_mean", "accuracy_mean", "win_percentage")) {
+  
+  # Filter data around event
+  event_data <- data %>%
+    filter(date >= (event_date - window_before) & date <= (event_date + window_after)) %>%
+    mutate(
+      days_from_event = as.numeric(date - event_date),
+      period = case_when(
+        days_from_event < 0 ~ "before",
+        days_from_event == 0 ~ "event_day",
+        days_from_event > 0 ~ "after"
+      )
+    )
+  
+  # Calculate baseline (average of before period)
+  baseline_stats <- event_data %>%
+    filter(period == "before") %>%
+    group_by(country) %>%
+    summarise(
+      baseline_rating = mean(rating_mean, na.rm = TRUE),
+      baseline_accuracy = mean(accuracy_mean, na.rm = TRUE),
+      baseline_win_pct = mean(win_percentage, na.rm = TRUE),
+      baseline_volatility_rating = sd(rating_mean, na.rm = TRUE),
+      baseline_volatility_accuracy = sd(accuracy_mean, na.rm = TRUE),
+      baseline_rating_std = mean(rating_std, na.rm = TRUE),  # Use built-in std measure
+      baseline_accuracy_std = mean(accuracy_std, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # Calculate impact metrics
+  impact_stats <- event_data %>%
+    filter(period %in% c("event_day", "after")) %>%
+    group_by(country) %>%
+    summarise(
+      impact_rating = mean(rating_mean, na.rm = TRUE),
+      impact_accuracy = mean(accuracy_mean, na.rm = TRUE),
+      impact_win_pct = mean(win_percentage, na.rm = TRUE),
+      impact_volatility_rating = sd(rating_mean, na.rm = TRUE),
+      impact_volatility_accuracy = sd(accuracy_mean, na.rm = TRUE),
+      impact_rating_std = mean(rating_std, na.rm = TRUE),  # Use built-in std measure
+      impact_accuracy_std = mean(accuracy_std, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # Combine and calculate changes
+  impact_analysis <- baseline_stats %>%
+    left_join(impact_stats, by = "country") %>%
+    mutate(
+      rating_change = impact_rating - baseline_rating,
+      accuracy_change = impact_accuracy - baseline_accuracy,
+      win_pct_change = impact_win_pct - baseline_win_pct,
+      volatility_rating_change = impact_volatility_rating - baseline_volatility_rating,
+      volatility_accuracy_change = impact_volatility_accuracy - baseline_volatility_accuracy,
+      rating_std_change = impact_rating_std - baseline_rating_std,  # Built-in std change
+      accuracy_std_change = impact_accuracy_std - baseline_accuracy_std,  # Built-in std change
+      event_date = event_date
+    )
+  
+  return(list(
+    impact_summary = impact_analysis,
+    event_data = event_data
+  ))
+}
+
+# Function to perform statistical tests
+perform_event_tests <- function(data, event_date, window_before = 7, window_after = 7) {
+  
+  event_data <- data %>%
+    filter(date >= (event_date - window_before) & date <= (event_date + window_after)) %>%
+    mutate(
+      days_from_event = as.numeric(date - event_date),
+      period = ifelse(days_from_event < 0, "before", "after")
+    ) %>%
+    filter(period %in% c("before", "after"))
+  
+  # T-tests for each country and metric
+  test_results <- data.frame()
+  
+  for (country_name in unique(event_data$country)) {
+    country_data <- event_data %>% filter(country == country_name)
+    
+    # Rating test
+    rating_test <- t.test(
+      country_data$rating_mean[country_data$period == "before"],
+      country_data$rating_mean[country_data$period == "after"]
+    )
+    
+    # Accuracy test
+    accuracy_test <- t.test(
+      country_data$accuracy_mean[country_data$period == "before"],
+      country_data$accuracy_mean[country_data$period == "after"]
+    )
+    
+    # Win percentage test
+    win_test <- t.test(
+      country_data$win_percentage[country_data$period == "before"],
+      country_data$win_percentage[country_data$period == "after"]
+    )
+    
+    test_results <- rbind(test_results, data.frame(
+      country = country_name,
+      event_date = event_date,
+      rating_p_value = rating_test$p.value,
+      rating_effect_size = rating_test$estimate[2] - rating_test$estimate[1],
+      accuracy_p_value = accuracy_test$p.value,
+      accuracy_effect_size = accuracy_test$estimate[2] - accuracy_test$estimate[1],
+      win_p_value = win_test$p.value,
+      win_effect_size = win_test$estimate[2] - win_test$estimate[1]
+    ))
+  }
+  
+  return(test_results)
+}
+
+# Analyze all extreme events
+print("Analyzing extreme events...")
+event_results <- list()
+event_tests <- list()
+
+for (i in 1:nrow(extreme_events)) {
+  event <- extreme_events[i, ]
+  
+  # Only analyze if event is within our data range
+  if (event$event_date >= min(all_data$date) & event$event_date <= max(all_data$date)) {
+    
+    cat(sprintf("Analyzing: %s (%s)\n", event$event_name, event$event_date))
+    
+    # Calculate impact
+    impact <- calculate_event_impact(all_data, event$event_date)
+    impact$impact_summary$event_name <- event$event_name
+    impact$impact_summary$event_type <- event$event_type
+    
+    # Perform statistical tests
+    tests <- perform_event_tests(all_data, event$event_date)
+    tests$event_name <- event$event_name
+    tests$event_type <- event$event_type
+    
+    event_results[[event$event_name]] <- impact$impact_summary
+    event_tests[[event$event_name]] <- tests
+  }
+}
+
+# Combine all results
+all_event_impacts <- do.call(rbind, event_results)
+all_event_tests <- do.call(rbind, event_tests)
+
+# Summary statistics
+print("=== EXTREME EVENT ANALYSIS SUMMARY ===")
+print("Top 10 Most Significant Rating Changes:")
+rating_impacts <- all_event_impacts %>%
+  arrange(desc(abs(rating_change))) %>%
+  select(event_name, country, rating_change, accuracy_change, win_pct_change) %>%
+  head(10)
+print(rating_impacts)
+
+print("\nMost Statistically Significant Events (p < 0.05):")
+significant_events <- all_event_tests %>%
+  filter(rating_p_value < 0.05 | accuracy_p_value < 0.05 | win_p_value < 0.05) %>%
+  arrange(rating_p_value) %>%
+  select(event_name, country, rating_p_value, accuracy_p_value, win_p_value, 
+         rating_effect_size, accuracy_effect_size, win_effect_size)
+print(significant_events)
+
+# Visualization function
+create_event_visualization <- function(event_name, window = 14) {
+  event_date <- extreme_events$event_date[extreme_events$event_name == event_name]
+  
+  viz_data <- all_data %>%
+    filter(date >= (event_date - window) & date <= (event_date + window)) %>%
+    mutate(days_from_event = as.numeric(date - event_date)) %>%
+    pivot_longer(cols = c(rating_mean, accuracy_mean, win_percentage, rating_std), 
+                 names_to = "metric", values_to = "value")
+  
+  p <- ggplot(viz_data, aes(x = days_from_event, y = value, color = country)) +
+    geom_line(alpha = 0.7) +
+    geom_point(alpha = 0.5) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "red", alpha = 0.7) +
+    facet_wrap(~metric, scales = "free_y") +
+    labs(
+      title = paste("Chess Performance Around:", event_name),
+      subtitle = paste("Event Date:", event_date),
+      x = "Days from Event",
+      y = "Performance Metric",
+      color = "Country"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  return(p)
+}
+
+# Create visualizations for most significant events
+print("\nCreating visualizations for top events...")
+
+# Find events with largest impacts
+top_events <- all_event_impacts %>%
+  group_by(event_name) %>%
+  summarise(
+    total_impact = sum(abs(rating_change) + abs(accuracy_change) + abs(win_pct_change), na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(total_impact)) %>%
+  head(4)
+
+# Create plots
+plots <- list()
+for (event in top_events$event_name) {
+  plots[[event]] <- create_event_visualization(event)
+}
+
+# Display plots
+for (i in 1:length(plots)) {
+  print(plots[[i]])
+}
+
+# Volatility analysis
+print("\n=== VOLATILITY ANALYSIS ===")
+volatility_impacts <- all_event_impacts %>%
+  select(event_name, country, volatility_rating_change, volatility_accuracy_change, 
+         rating_std_change, accuracy_std_change) %>%
+  arrange(desc(abs(rating_std_change))) %>%
+  head(10)
+print("Top 10 Events by Volatility Impact (using rating_std):")
+print(volatility_impacts)
+
+# Cross-country correlation analysis
+print("\n=== CROSS-COUNTRY CORRELATION ANALYSIS ===")
+cross_country_correlation <- all_event_impacts %>%
+  select(event_name, country, rating_change, accuracy_change, win_pct_change) %>%
+  pivot_longer(cols = c(rating_change, accuracy_change, win_pct_change), 
+               names_to = "metric", values_to = "change") %>%
+  pivot_wider(names_from = country, values_from = change) %>%
+  group_by(metric) %>%
+  summarise(
+    GB_FR_cor = cor(GB, FR, use = "complete.obs"),
+    GB_DE_cor = cor(GB, DE, use = "complete.obs"),
+    FR_DE_cor = cor(FR, DE, use = "complete.obs"),
+    .groups = "drop"
+  )
+print("Cross-country correlations during extreme events:")
+print(cross_country_correlation)
+
+# Create summary report
+print("\n=== FINAL INSIGHTS ===")
+cat("1. Events analyzed:", nrow(extreme_events), "\n")
+cat("2. Statistically significant impacts found:", nrow(significant_events), "\n")
+cat("3. Countries with most volatile responses:", 
+    names(sort(table(all_event_impacts$country[abs(all_event_impacts$volatility_rating_change) > 
+                                                 quantile(abs(all_event_impacts$volatility_rating_change), 0.75, na.rm = TRUE)]), 
+               decreasing = TRUE))[1], "\n")
+
+# Effect size analysis
+effect_sizes <- all_event_tests %>%
+  mutate(
+    rating_effect_magnitude = abs(rating_effect_size),
+    accuracy_effect_magnitude = abs(accuracy_effect_size),
+    win_effect_magnitude = abs(win_effect_size)
+  ) %>%
+  group_by(event_type) %>%
+  summarise(
+    avg_rating_effect = mean(rating_effect_magnitude, na.rm = TRUE),
+    avg_accuracy_effect = mean(accuracy_effect_magnitude, na.rm = TRUE),
+    avg_win_effect = mean(win_effect_magnitude, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print("Average effect sizes by event type:")
+print(effect_sizes)
+
+# Return key objects for further analysis
+list(
+  event_impacts = all_event_impacts,
+  event_tests = all_event_tests,
+  significant_events = significant_events,
+  plots = plots,
+  effect_sizes = effect_sizes
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
